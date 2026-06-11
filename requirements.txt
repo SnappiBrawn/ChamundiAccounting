@@ -31,3 +31,4 @@ typing_extensions==4.15.0
 uv==0.9.17
 uvicorn==0.49.0
 httpx
+xhtml2pdf

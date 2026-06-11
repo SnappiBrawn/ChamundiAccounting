@@ -1,12 +1,17 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 
+from PyInstaller.utils.hooks import collect_all
+
+rl_datas, rl_binaries, rl_hidden = collect_all('reportlab')
+html_datas, html_binaries, html_hidden = collect_all('xhtml2pdf')
+
 a = Analysis(
     ['backend\\main.py'],
     pathex=[],
-    binaries=[],
-    datas=[('dist', 'dist'), ('backend/templates', 'templates')],
-    hiddenimports=[],
+    binaries=rl_binaries + html_binaries,
+    datas=[('dist', 'dist'), ('backend/templates', 'templates')] + rl_datas + html_datas,
+    hiddenimports=rl_hidden + html_hidden,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
