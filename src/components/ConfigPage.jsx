@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Save } from 'lucide-react';
+import { Save, Mail } from 'lucide-react';
 import { formatDate } from '../utils/dateFormatter';
 import { useToast } from '../context/ToastContext';
 
@@ -31,10 +31,16 @@ export default function ConfigPage() {
         challan_prefix: '',
         challan_suffix: '',
         challan_padding: 4,
-        next_challan_sequence: 1
+        next_challan_sequence: 1,
+        smtp_host: 'smtp.gmail.com',
+        smtp_port: 587,
+        smtp_user: '',
+        smtp_password: '',
+        email_to: ''
     });
 
     const [loading, setLoading] = useState(true);
+    const [activeSubTab, setActiveSubTab] = useState('company'); // 'company' | 'templates' | 'backup'
 
     useEffect(() => {
         const fetchConfig = async () => {
@@ -85,6 +91,33 @@ export default function ConfigPage() {
         }
     };
 
+    const [exporting, setExporting] = useState(false);
+
+    const handleExportEmail = async () => {
+        setExporting(true);
+        try {
+            const res = await fetch('/api/system/export-email', {
+                method: 'POST'
+            });
+            if (res.ok) {
+                const data = await res.json();
+                toast.success(data.message || 'Data exported and emailed successfully!');
+            } else {
+                let errMsg = 'Failed to export and email data.';
+                try {
+                    const data = await res.json();
+                    errMsg = data.detail || errMsg;
+                } catch (_) {}
+                toast.error(errMsg);
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error('Network error during email export');
+        } finally {
+            setExporting(false);
+        }
+    };
+
     if (loading) {
         return <div className="panel"><p>Loading configuration settings...</p></div>;
     }
@@ -95,8 +128,35 @@ export default function ConfigPage() {
                 <h2 className="panel-title">System Settings</h2>
             </div>
 
+            {/* Sub Tabs Navigation */}
+            <div className="subtabs-container">
+                <button
+                    type="button"
+                    className={`subtab-button ${activeSubTab === 'company' ? 'active' : ''}`}
+                    onClick={() => setActiveSubTab('company')}
+                >
+                    Company Details
+                </button>
+                <button
+                    type="button"
+                    className={`subtab-button ${activeSubTab === 'templates' ? 'active' : ''}`}
+                    onClick={() => setActiveSubTab('templates')}
+                >
+                    Templates & Formatting
+                </button>
+                <button
+                    type="button"
+                    className={`subtab-button ${activeSubTab === 'backup' ? 'active' : ''}`}
+                    onClick={() => setActiveSubTab('backup')}
+                >
+                    Backup & Export
+                </button>
+            </div>
+
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                {/* Company & Billing Address */}
+                {activeSubTab === 'company' && (
+                    <>
+                        {/* Company & Billing Address */}
                 <div>
                     <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
                         Company Profile & Address
@@ -270,8 +330,12 @@ export default function ConfigPage() {
                         </div>
                     </div>
                 </div>
+                    </>
+                )}
 
-                {/* Numbering templates grouped side-by-side */}
+                {activeSubTab === 'templates' && (
+                    <>
+                        {/* Numbering templates grouped side-by-side */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
                     <div>
                         <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
@@ -421,7 +485,85 @@ export default function ConfigPage() {
                         </div>
                     </div>
                 </div>
+                    </>
+                )}
 
+                {activeSubTab === 'backup' && (
+                    <>
+                        {/* SMTP Configuration */}
+                <div>
+                    <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
+                        SMTP Mailer Configuration
+                    </h3>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+                        Configure your SMTP server settings to automatically export all invoices and delivery challans as PDFs zipped in an archive and sent to a backup email.
+                    </p>
+                    <div className="form-grid">
+                        <div className="form-group">
+                            <label>SMTP Host</label>
+                            <input
+                                type="text"
+                                value={config.smtp_host || 'smtp.gmail.com'}
+                                onChange={(e) => handleChange('smtp_host', e.target.value)}
+                                placeholder="e.g. smtp.gmail.com"
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>SMTP Port</label>
+                            <input
+                                type="number"
+                                value={config.smtp_port || 587}
+                                onChange={(e) => handleChange('smtp_port', parseInt(e.target.value) || 587)}
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Sender Username (From Email)</label>
+                            <input
+                                type="email"
+                                value={config.smtp_user || ''}
+                                onChange={(e) => handleChange('smtp_user', e.target.value)}
+                                placeholder="e.g. sender@gmail.com"
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Sender Password / App Password</label>
+                            <input
+                                type="password"
+                                value={config.smtp_password || ''}
+                                onChange={(e) => handleChange('smtp_password', e.target.value)}
+                                placeholder="Gmail App Password"
+                            />
+                        </div>
+                        <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                            <label>Recipient Email (To Email)</label>
+                            <input
+                                type="email"
+                                value={config.email_to || ''}
+                                onChange={(e) => handleChange('email_to', e.target.value)}
+                                placeholder="e.g. business-backup@gmail.com"
+                            />
+                        </div>
+                    </div>
+
+                    <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                        <button 
+                            type="button" 
+                            className="btn btn-secondary" 
+                            onClick={handleExportEmail}
+                            disabled={exporting}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
+                        >
+                            <Mail size={16} /> 
+                            {exporting ? 'Exporting & Emailing...' : 'Export & Email Data (.ZIP)'}
+                        </button>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                            Generates PDF copies of all invoices/DCs, bundles them to .ZIP, and sends to the recipient.
+                        </span>
+                    </div>
+                </div>
+                    </>
+                )}
+ 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
                     <button type="submit" className="btn btn-primary">
                         <Save size={16} /> Save Configuration

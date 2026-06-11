@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tax Invoice</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 10mm;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+            color: #000;
+            margin: 0;
+            padding: 0;
+        }
+        .invoice-container {
+            border: 1px solid #000;
+            width: 100%;
+        }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-left { text-align: left; }
+        .font-bold { font-weight: bold; }
+        
+        .header-title {
+            font-size: 13px;
+            padding: 4px;
+            text-align: center;
+            border-bottom: 1px solid #000;
+            font-weight: bold;
+        }
+        
+        .section-top-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-bottom: 1px solid #000;
+        }
+        .section-top-table td {
+            padding: 0;
+            vertical-align: top;
+        }
+        .company-details {
+            padding: 6px;
+        }
+        .meta-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .meta-table td {
+            padding: 5px 6px;
+            border-bottom: 1px solid #000;
+            border-left: 1px solid #000;
+            height: 35px;
+            vertical-align: top;
+        }
+        
+        .buyer-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-bottom: 1px solid #000;
+        }
+        .buyer-table td {
+            padding: 6px;
+            vertical-align: top;
+        }
+        
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .items-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+            padding: 5px;
+            border-bottom: 1px solid #000;
+            border-right: 1px solid #000;
+            font-size: 9px;
+            text-align: center;
+        }
+        .items-table th:last-child {
+            border-right: none;
+        }
+        .items-table td {
+            padding: 4px 6px;
+            border-right: 1px solid #000;
+            vertical-align: top;
+            font-size: 9px;
+        }
+        .items-table td:last-child {
+            border-right: none;
+        }
+        .items-table tr.item-row {
+            height: 18px;
+        }
+        .items-table tr.spacer-row {
+            height: 150px;
+        }
+        
+        .totals-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-top: 1px solid #000;
+            border-bottom: 1px solid #000;
+        }
+        .totals-table td {
+            padding: 4px 6px;
+            font-size: 9px;
+        }
+        
+        .words-section {
+            padding: 6px;
+            border-bottom: 1px solid #000;
+            font-size: 9px;
+        }
+        
+        .bottom-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .bottom-table td {
+            padding: 6px;
+            vertical-align: top;
+            font-size: 9px;
+        }
+        
+        .col-sr { width: 6%; text-align: center; }
+        .col-desc { width: 50%; }
+        .col-hsn { width: 12%; text-align: center; }
+        .col-qty { width: 10%; text-align: right; }
+        .col-rate { width: 10%; text-align: right; }
+        .col-amt { width: 12%; text-align: right; }
+    </style>
+</head>
+<body>
+    <div class="invoice-container">
+        <div class="header-title">TAX INVOICE</div>
+        
+        <table class="section-top-table">
+            <tr>
+                <td style="width: 50%; border-right: 1px solid #000;">
+                    <div class="company-details">
+                        <div style="margin-bottom: 4px;">
+                            <img src="{{logo_path}}" alt="Logo" style="height: 30px;" />
+                        </div>
+                        <div class="font-bold" style="font-size: 11px; margin-bottom: 2px;">{{company_name}}</div>
+                        <div>{{address_line1}}</div>
+                        <div>{{address_line2}}</div>
+                        <div>{{address_line3}}</div>
+                        <div>{{address_line4}}</div>
+                        <div>Phone: {{company_phone}}</div>
+                        <div style="margin-top: 4px;">
+                            <span class="font-bold">GSTIN/UIN:</span> {{company_gstin}}<br>
+                            <span class="font-bold">State Name:</span> {{company_state_name}}, <span class="font-bold">Code:</span> {{company_state_code}}
+                        </div>
+                    </div>
+                </td>
+                <td style="width: 50%;">
+                    <table class="meta-table">
+                        <tr>
+                            <td style="width: 50%; border-left: none;">
+                                <span class="font-bold">Invoice No.</span><br>{{invoice_no}}
+                            </td>
+                            <td style="width: 50%;">
+                                <span class="font-bold">Dated</span><br>{{date}}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="border-left: none;">
+                                <span class="font-bold">Ref. No.</span><br>{{ref_no}}
+                            </td>
+                            <td>
+                                <span class="font-bold">Ref. Date</span><br>{{ref_date}}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="border-left: none;">
+                                <span class="font-bold">Vehicle No.</span><br>{{vehicle_no}}
+                            </td>
+                            <td>
+                                <span class="font-bold">Other Reference</span><br>{{other_ref}}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" style="border-left: none; border-bottom: none; height: 40px;">
+                                <span class="font-bold">Terms of Delivery</span><br>{{terms_delivery}}
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+        
+        <table class="buyer-table">
+            <tr>
+                <td>
+                    <span class="font-bold">Buyer (Bill to)</span><br>
+                    <span class="font-bold" style="font-size: 10px;">{{customer_name}}</span><br>
+                    {{customer_address}}<br>
+                    <span class="font-bold">GSTIN/UIN:</span> {{customer_gstin}}<br>
+                    <span class="font-bold">State Name:</span> {{customer_state_name}}, <span class="font-bold">Code:</span> {{customer_state_code}}
+                </td>
+            </tr>
+        </table>
+        
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th class="col-sr">Sr. No.</th>
+                    <th class="col-desc">Description of Goods /Service</th>
+                    <th class="col-hsn">HSN/SAC</th>
+                    <th class="col-qty">Quantity</th>
+                    <th class="col-rate">Rate</th>
+                    <th class="col-amt">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{items_rows}}
+                {{spacer_rows}}
+            </tbody>
+        </table>
+        
+        <table class="totals-table">
+            <tr>
+                <td class="col-sr" style="border-right: 1px solid #000;"></td>
+                <td class="col-desc font-bold text-right" style="border-right: 1px solid #000;">Total Quantity / Taxable Value</td>
+                <td class="col-hsn" style="border-right: 1px solid #000;"></td>
+                <td class="col-qty font-bold text-right" style="border-right: 1px solid #000;">{{total_quantity}}</td>
+                <td class="col-rate" style="border-right: 1px solid #000;"></td>
+                <td class="col-amt font-bold text-right">{{taxable_value}}</td>
+            </tr>
+            {{tax_rows}}
+            <tr style="border-top: 1px solid #000;">
+                <td colspan="5" class="text-right font-bold" style="border-right: 1px solid #000;">Total Invoice Value</td>
+                <td class="col-amt font-bold text-right">{{total_value}}</td>
+            </tr>
+        </table>
+        
+        <div class="words-section">
+            <span class="font-bold">Total Invoice Value (in words):</span> <span style="font-style: italic;">{{total_words}}</span>
+        </div>
+        
+        <table class="bottom-table">
+            <tr>
+                <td style="width: 30%; border-right: 1px solid #000; text-align: center; height: 100px; vertical-align: bottom;">
+                    <div style="margin-bottom: 40px; border-bottom: 1px dotted #ccc; width: 80%; margin-left: auto; margin-right: auto;"></div>
+                    <span class="font-bold">Receiver's Signature</span>
+                </td>
+                <td style="width: 40%; padding-left: 10px;">
+                    <span class="font-bold" style="border-bottom: 1px solid #000; display: block; margin-bottom: 4px;">Company's Bank Details</span>
+                    <span class="font-bold">Bank Name:</span> {{bank_name}}<br>
+                    <span class="font-bold">Account Number:</span> {{bank_acc_no}}<br>
+                    <span class="font-bold">Branch:</span> {{bank_branch}}<br>
+                    <span class="font-bold">IFSC Code:</span> {{bank_ifsc}}<br>
+                    <span class="font-bold" style="border-top: 1px solid #000; display: block; margin-top: 4px; padding-top: 4px;">Company's PAN: {{company_pan}}</span>
+                </td>
+                <td style="width: 30%; border-left: 1px solid #000; padding-left: 10px;">
+                    <span class="font-bold" style="border-bottom: 1px solid #000; display: block; margin-bottom: 4px;">Declaration</span>
+                    We declare that this invoice shows the actual price of the Goods described and that all particulars are true and correct.
+                    <div style="text-align: right; margin-top: 20px;">
+                        for <span class="font-bold">{{company_name}}</span><br><br><br>
+                        <span class="font-bold">Authorised Signatory</span>
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </div>
+</body>
+</html>

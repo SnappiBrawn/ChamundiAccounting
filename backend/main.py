@@ -8,9 +8,15 @@ import sys
 import sqlite3
 import httpx
 import subprocess
+import shutil
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
 from database import get_db_connection, init_db
 
-CURRENT_VERSION = "v1.0.3"
+CURRENT_VERSION = "v1.0.4"
 GITHUB_REPO_API = "https://api.github.com/repos/snappibrawn/chamundiaccounting/releases/latest"
 
 
@@ -59,6 +65,11 @@ class CompanyConfigSchema(BaseModel):
     challan_suffix: str
     challan_padding: int
     next_challan_sequence: int
+    smtp_host: Optional[str] = "smtp.gmail.com"
+    smtp_port: Optional[int] = 587
+    smtp_user: Optional[str] = ""
+    smtp_password: Optional[str] = ""
+    email_to: Optional[str] = ""
 
 class CustomerSchema(BaseModel):
     name: str
@@ -219,7 +230,8 @@ def update_config(config: CompanyConfigSchema):
         cgst_rate = ?, sgst_rate = ?, igst_rate = ?,
         invoice_prefix = ?, invoice_suffix = ?, invoice_padding = ?, next_sequence = ?,
         date_format = ?, phone = ?,
-        challan_prefix = ?, challan_suffix = ?, challan_padding = ?, next_challan_sequence = ?
+        challan_prefix = ?, challan_suffix = ?, challan_padding = ?, next_challan_sequence = ?,
+        smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_password = ?, email_to = ?
     WHERE id = 1
     """, (
         config.company_name, config.address_line1, config.address_line2, config.address_line3, config.address_line4,
@@ -228,7 +240,8 @@ def update_config(config: CompanyConfigSchema):
         config.cgst_rate, config.sgst_rate, config.igst_rate,
         config.invoice_prefix, config.invoice_suffix, config.invoice_padding, config.next_sequence,
         config.date_format, config.phone,
-        config.challan_prefix, config.challan_suffix, config.challan_padding, config.next_challan_sequence
+        config.challan_prefix, config.challan_suffix, config.challan_padding, config.next_challan_sequence,
+        config.smtp_host, config.smtp_port, config.smtp_user, config.smtp_password, config.email_to
     ))
     conn.commit()
     conn.close()
@@ -727,6 +740,10 @@ def get_invoice_template():
     return {"html": html_content}
 
 # System & Auto-Updater API
+@app.get("/api/system/version")
+def get_version():
+    return {"version": CURRENT_VERSION}
+
 @app.get("/api/system/check-update")
 async def check_for_updates():
     """Checks GitHub for a newer release tag."""
@@ -826,6 +843,320 @@ del "%~f0"
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
+
+# Email Export & Zip Helper
+def format_date_py(date_str, fmt):
+    if not date_str:
+        return ''
+    parts = date_str.split('-')
+    if len(parts) != 3:
+        return date_str
+    year, month, day = parts
+    months_short = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    try:
+        month_idx = int(month) - 1
+        mmm = months_short[month_idx]
+    except Exception:
+        mmm = month
+
+    if fmt == 'DD-MM-YYYY':
+        return f"{day}-{month}-{year}"
+    elif fmt == 'DD/MM/YYYY':
+        return f"{day}/{month}/{year}"
+    elif fmt == 'MM/DD/YYYY':
+        return f"{month}/{day}/{year}"
+    elif fmt == 'DD MMM YYYY':
+        return f"{day} {mmm} {year}"
+    elif fmt == 'MMM DD, YYYY':
+        return f"{mmm} {day}, {year}"
+    else:
+        return f"{year}-{month}-{day}"
+
+@app.post("/api/system/export-email")
+def export_and_email_data():
+    conn = get_db_connection()
+    config = conn.execute("SELECT * FROM company_config WHERE id = 1").fetchone()
+    if not config:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Company configuration not found")
+    
+    smtp_host = config["smtp_host"]
+    smtp_port = config["smtp_port"]
+    smtp_user = config["smtp_user"]
+    smtp_password = config["smtp_password"]
+    email_to = config["email_to"]
+    
+    if not smtp_host or not smtp_user or not smtp_password or not email_to:
+        conn.close()
+        raise HTTPException(status_code=400, detail="SMTP Host, User, Password, and Recipient Email must be configured in Settings")
+    
+    # Create temp directory inside workspace
+    if getattr(sys, 'frozen', False):
+        parent_dir = os.path.dirname(sys.executable)
+    else:
+        parent_dir = os.path.dirname(os.path.dirname(__file__))
+        
+    temp_dir = os.path.join(parent_dir, "export_temp")
+    os.makedirs(temp_dir, exist_ok=True)
+    
+    try:
+        from xhtml2pdf import pisa
+        
+        # Resolve template paths
+        if getattr(sys, 'frozen', False):
+            invoice_template_path = os.path.join(sys._MEIPASS, "templates", "invoice_pdf_template.html")
+            challan_template_path = os.path.join(sys._MEIPASS, "templates", "challan_pdf_template.html")
+            logo_path = os.path.join(sys._MEIPASS, "dist", "logo.png")
+        else:
+            invoice_template_path = os.path.join(os.path.dirname(__file__), "templates", "invoice_pdf_template.html")
+            challan_template_path = os.path.join(os.path.dirname(__file__), "templates", "challan_pdf_template.html")
+            logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "src", "assets", "Logo.png")
+            
+        with open(invoice_template_path, "r", encoding="utf-8") as f:
+            invoice_template = f.read()
+        with open(challan_template_path, "r", encoding="utf-8") as f:
+            challan_template = f.read()
+            
+        # Generate Invoice PDFs
+        invoices = conn.execute("SELECT * FROM invoices").fetchall()
+        for inv in invoices:
+            items = conn.execute("SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY sr_no ASC", (inv["id"],)).fetchall()
+            
+            items_rows = ""
+            total_qty = 0
+            for index, item in enumerate(items):
+                total_qty += item["quantity"]
+                items_rows += f"""
+                <tr class="item-row">
+                    <td class="col-sr" style="border-right: 1px solid #000; text-align: center;">{index + 1}</td>
+                    <td class="col-desc" style="border-right: 1px solid #000;">{item["description"]}</td>
+                    <td class="col-hsn" style="border-right: 1px solid #000; text-align: center;">{item["hsn_sac"] or ""}</td>
+                    <td class="col-qty" style="border-right: 1px solid #000; text-align: right;">{item["quantity"]}</td>
+                    <td class="col-rate" style="border-right: 1px solid #000; text-align: right;">{item["rate"]:.2f}</td>
+                    <td class="col-amt" style="text-align: right;">{item["amount"]:.2f}</td>
+                </tr>
+                """
+                
+            spacer_rows = ""
+            min_rows = 12
+            spacer_count = max(0, min_rows - len(items))
+            for _ in range(spacer_count):
+                spacer_rows += """
+                <tr class="spacer-row">
+                    <td class="col-sr" style="border-right: 1px solid #000; border-bottom: none;"></td>
+                    <td class="col-desc" style="border-right: 1px solid #000; border-bottom: none;"></td>
+                    <td class="col-hsn" style="border-right: 1px solid #000; border-bottom: none;"></td>
+                    <td class="col-qty" style="border-right: 1px solid #000; border-bottom: none;"></td>
+                    <td class="col-rate" style="border-right: 1px solid #000; border-bottom: none;"></td>
+                    <td class="col-amt" style="border-bottom: none;"></td>
+                </tr>
+                """
+                
+            tax_rows = ""
+            if inv["cgst_value"] > 0:
+                tax_rows += f"""
+                <tr>
+                    <td class="col-sr" style="border-right: 1px solid #000;"></td>
+                    <td class="col-desc font-bold text-right" style="border-right: 1px solid #000; text-align: right;">CGST @ {inv["cgst_rate"]}%</td>
+                    <td class="col-hsn" style="border-right: 1px solid #000;"></td>
+                    <td class="col-qty" style="border-right: 1px solid #000;"></td>
+                    <td class="col-rate" style="border-right: 1px solid #000;"></td>
+                    <td class="col-amt font-bold text-right" style="text-align: right;">{inv["cgst_value"]:.2f}</td>
+                </tr>
+                <tr>
+                    <td class="col-sr" style="border-right: 1px solid #000;"></td>
+                    <td class="col-desc font-bold text-right" style="border-right: 1px solid #000; text-align: right;">SGST @ {inv["sgst_rate"]}%</td>
+                    <td class="col-hsn" style="border-right: 1px solid #000;"></td>
+                    <td class="col-qty" style="border-right: 1px solid #000;"></td>
+                    <td class="col-rate" style="border-right: 1px solid #000;"></td>
+                    <td class="col-amt font-bold text-right" style="text-align: right;">{inv["sgst_value"]:.2f}</td>
+                </tr>
+                """
+            if inv["igst_value"] > 0:
+                tax_rows += f"""
+                <tr>
+                    <td class="col-sr" style="border-right: 1px solid #000;"></td>
+                    <td class="col-desc font-bold text-right" style="border-right: 1px solid #000; text-align: right;">IGST @ {inv["igst_rate"]}%</td>
+                    <td class="col-hsn" style="border-right: 1px solid #000;"></td>
+                    <td class="col-qty" style="border-right: 1px solid #000;"></td>
+                    <td class="col-rate" style="border-right: 1px solid #000;"></td>
+                    <td class="col-amt font-bold text-right" style="text-align: right;">{inv["igst_value"]:.2f}</td>
+                </tr>
+                """
+            if inv["round_off"] != 0:
+                tax_rows += f"""
+                <tr>
+                    <td class="col-sr" style="border-right: 1px solid #000;"></td>
+                    <td class="col-desc font-bold text-right" style="border-right: 1px solid #000; text-align: right;">Round off</td>
+                    <td class="col-hsn" style="border-right: 1px solid #000;"></td>
+                    <td class="col-qty" style="border-right: 1px solid #000;"></td>
+                    <td class="col-rate" style="border-right: 1px solid #000;"></td>
+                    <td class="col-amt font-bold text-right" style="text-align: right;">{inv["round_off"]:.2f}</td>
+                </tr>
+                """
+                
+            html_content = invoice_template \
+                .replace("{{logo_path}}", logo_path) \
+                .replace("{{company_name}}", config["company_name"] or "") \
+                .replace("{{address_line1}}", config["address_line1"] or "") \
+                .replace("{{address_line2}}", config["address_line2"] or "") \
+                .replace("{{address_line3}}", config["address_line3"] or "") \
+                .replace("{{address_line4}}", config["address_line4"] or "") \
+                .replace("{{company_gstin}}", config["gstin"] or "") \
+                .replace("{{company_state_name}}", config["state_name"] or "") \
+                .replace("{{company_state_code}}", config["state_code"] or "") \
+                .replace("{{company_pan}}", config["pan"] or "") \
+                .replace("{{company_phone}}", config["phone"] or "") \
+                .replace("{{invoice_no}}", inv["invoice_no"]) \
+                .replace("{{date}}", format_date_py(inv["date"], config["date_format"])) \
+                .replace("{{ref_no}}", inv["ref_no"] or "") \
+                .replace("{{ref_date}}", format_date_py(inv["ref_date"], config["date_format"])) \
+                .replace("{{vehicle_no}}", inv["vehicle_no"] or "") \
+                .replace("{{other_ref}}", inv["other_ref"] or "") \
+                .replace("{{terms_delivery}}", inv["terms_delivery"] or "") \
+                .replace("{{customer_name}}", inv["customer_name"] or "") \
+                .replace("{{customer_address}}", inv["customer_address"] or "") \
+                .replace("{{customer_gstin}}", inv["customer_gstin"] or "") \
+                .replace("{{customer_state_name}}", inv["customer_state"] or "") \
+                .replace("{{customer_state_code}}", inv["customer_state_code"] or "") \
+                .replace("{{items_rows}}", items_rows) \
+                .replace("{{spacer_rows}}", spacer_rows) \
+                .replace("{{total_quantity}}", str(total_qty)) \
+                .replace("{{taxable_value}}", f"{inv['taxable_value']:.2f}") \
+                .replace("{{tax_rows}}", tax_rows) \
+                .replace("{{total_value}}", f"{inv['total_value']:.2f}") \
+                .replace("{{total_words}}", inv["total_words"] or "") \
+                .replace("{{bank_name}}", config["bank_name"] or "") \
+                .replace("{{bank_acc_no}}", config["bank_acc_no"] or "") \
+                .replace("{{bank_branch}}", config["bank_branch"] or "") \
+                .replace("{{bank_ifsc}}", config["bank_ifsc"] or "")
+            
+            safe_invoice_no = inv["invoice_no"].replace("/", "_").replace("\\", "_")
+            pdf_path = os.path.join(temp_dir, f"Invoice_{safe_invoice_no}.pdf")
+            
+            with open(pdf_path, "w+b") as result_file:
+                pisa.CreatePDF(html_content, dest=result_file)
+                
+        # Generate Challan PDFs
+        challans = conn.execute("SELECT * FROM challans").fetchall()
+        for ch in challans:
+            ch_items = conn.execute("SELECT * FROM challan_items WHERE challan_id = ? ORDER BY sr_no ASC", (ch["id"],)).fetchall()
+            
+            ch_items_rows = ""
+            total_ch_qty = 0
+            for index, item in enumerate(ch_items):
+                total_ch_qty += item["quantity"]
+                ch_items_rows += f"""
+                <tr class="item-row">
+                    <td class="col-sr" style="border-right: 1px solid #000; text-align: center;">{index + 1}</td>
+                    <td class="col-desc" style="border-right: 1px solid #000;">{item["description"]}</td>
+                    <td class="col-hsn" style="border-right: 1px solid #000; text-align: center;">{item["hsn_sac"] or ""}</td>
+                    <td class="col-qty" style="text-align: right;">{item["quantity"]}</td>
+                </tr>
+                """
+                
+            ch_spacer_rows = ""
+            min_rows = 12
+            spacer_count = max(0, min_rows - len(ch_items))
+            for _ in range(spacer_count):
+                ch_spacer_rows += """
+                <tr class="spacer-row">
+                    <td class="col-sr" style="border-right: 1px solid #000; border-bottom: none;"></td>
+                    <td class="col-desc" style="border-right: 1px solid #000; border-bottom: none;"></td>
+                    <td class="col-hsn" style="border-right: 1px solid #000; border-bottom: none;"></td>
+                    <td class="col-qty" style="border-bottom: none;"></td>
+                </tr>
+                """
+                
+            ch_html_content = challan_template \
+                .replace("{{logo_path}}", logo_path) \
+                .replace("{{company_name}}", config["company_name"] or "") \
+                .replace("{{address_line1}}", config["address_line1"] or "") \
+                .replace("{{address_line2}}", config["address_line2"] or "") \
+                .replace("{{address_line3}}", config["address_line3"] or "") \
+                .replace("{{address_line4}}", config["address_line4"] or "") \
+                .replace("{{company_gstin}}", config["gstin"] or "") \
+                .replace("{{company_state_name}}", config["state_name"] or "") \
+                .replace("{{company_state_code}}", config["state_code"] or "") \
+                .replace("{{company_pan}}", config["pan"] or "") \
+                .replace("{{company_phone}}", config["phone"] or "") \
+                .replace("{{challan_no}}", ch["challan_no"]) \
+                .replace("{{date}}", format_date_py(ch["date"], config["date_format"])) \
+                .replace("{{ref_no}}", ch["ref_no"] or "") \
+                .replace("{{ref_date}}", format_date_py(ch["ref_date"], config["date_format"])) \
+                .replace("{{vehicle_no}}", ch["vehicle_no"] or "") \
+                .replace("{{terms_delivery}}", ch["terms_delivery"] or "") \
+                .replace("{{customer_name}}", ch["customer_name"] or "") \
+                .replace("{{customer_address}}", ch["customer_address"] or "") \
+                .replace("{{customer_gstin}}", ch["customer_gstin"] or "") \
+                .replace("{{customer_state_name}}", ch["customer_state"] or "") \
+                .replace("{{customer_state_code}}", ch["customer_state_code"] or "") \
+                .replace("{{items_rows}}", ch_items_rows) \
+                .replace("{{spacer_rows}}", ch_spacer_rows) \
+                .replace("{{total_quantity}}", str(total_ch_qty))
+            
+            safe_challan_no = ch["challan_no"].replace("/", "_").replace("\\", "_")
+            pdf_path = os.path.join(temp_dir, f"Challan_{safe_challan_no}.pdf")
+            
+            with open(pdf_path, "w+b") as result_file:
+                pisa.CreatePDF(ch_html_content, dest=result_file)
+                
+        # Zip up the files
+        zip_base_path = os.path.join(parent_dir, "Chamundi_Export")
+        zip_file_path = shutil.make_archive(zip_base_path, "zip", temp_dir)
+        zip_filename = os.path.basename(zip_file_path)
+        
+        # Email setup
+        msg = MIMEMultipart()
+        msg['From'] = smtp_user
+        msg['To'] = email_to
+        msg['Subject'] = f"{config['company_name']} - Complete Invoice & DC PDF Export"
+        
+        body = f"Please find attached the complete export of all invoices and delivery challans as PDFs from {config['company_name']}.\n\nTotal Invoices: {len(invoices)}\nTotal Challans: {len(challans)}"
+        msg.attach(MIMEText(body, 'plain'))
+        
+        with open(zip_file_path, "rb") as attachment:
+            part = MIMEBase("application", "octet-stream")
+            part.set_payload(attachment.read())
+            encoders.encode_base64(part)
+            part.add_header(
+                "Content-Disposition",
+                f"attachment; filename= {zip_filename}",
+            )
+            msg.attach(part)
+            
+        # Connect and send via SMTP
+        server = None
+        try:
+            if smtp_port == 465:
+                server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=30)
+            else:
+                server = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
+                server.starttls()
+                
+            server.login(smtp_user, smtp_password)
+            server.sendmail(smtp_user, email_to, msg.as_string())
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Email sending failed: {str(e)}")
+        finally:
+            if server:
+                server.quit()
+                
+        # Cleanup
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        if os.path.exists(zip_file_path):
+            os.remove(zip_file_path)
+            
+        conn.close()
+        return {"status": "success", "message": "All invoices and delivery challans exported as PDF and emailed successfully."}
+        
+    except Exception as e:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        zip_file_to_check = os.path.join(parent_dir, "Chamundi_Export.zip")
+        if os.path.exists(zip_file_to_check):
+            os.remove(zip_file_to_check)
+        conn.close()
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
 
 # Serve Frontend SPA Static Files (production build mount)
 if getattr(sys, 'frozen', False):

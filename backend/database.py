@@ -48,7 +48,12 @@ def init_db():
         challan_prefix TEXT DEFAULT 'DC/',
         challan_suffix TEXT DEFAULT '',
         challan_padding INTEGER DEFAULT 4,
-        next_challan_sequence INTEGER DEFAULT 1
+        next_challan_sequence INTEGER DEFAULT 1,
+        smtp_host TEXT DEFAULT 'smtp.gmail.com',
+        smtp_port INTEGER DEFAULT 587,
+        smtp_user TEXT DEFAULT '',
+        smtp_password TEXT DEFAULT '',
+        email_to TEXT DEFAULT ''
     )
     """)
     
@@ -79,6 +84,28 @@ def init_db():
         pass
     try:
         cursor.execute("ALTER TABLE company_config ADD COLUMN next_challan_sequence INTEGER DEFAULT 1")
+    except sqlite3.OperationalError:
+        pass
+        
+    # Run migrations for SMTP configuration columns
+    try:
+        cursor.execute("ALTER TABLE company_config ADD COLUMN smtp_host TEXT DEFAULT 'smtp.gmail.com'")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute("ALTER TABLE company_config ADD COLUMN smtp_port INTEGER DEFAULT 587")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute("ALTER TABLE company_config ADD COLUMN smtp_user TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute("ALTER TABLE company_config ADD COLUMN smtp_password TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute("ALTER TABLE company_config ADD COLUMN email_to TEXT DEFAULT ''")
     except sqlite3.OperationalError:
         pass
     
