@@ -22,7 +22,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='Chamundi',
+    name='ChamundiAccounting',
     icon='src/assets/icon.ico',
     debug=False,
     bootloader_ignore_signals=False,

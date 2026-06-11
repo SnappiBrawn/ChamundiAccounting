@@ -1,0 +1,41 @@
+name: Build and Release Windows Executable
+
+on:
+  push:
+    tags:
+      - 'v*' # This triggers the action ONLY when you push a tag like v1.0.0
+
+jobs:
+  build:
+    name: Build and Package
+    runs-on: windows-latest # Provisions a Windows environment
+    
+    # CRITICAL: This grants the action permission to create a GitHub Release
+    permissions:
+      contents: write 
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Build with PyInstaller
+      run: pyinstaller Chamundi.spec
+
+    - name: Publish GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        # Change 'main.exe' to whatever your executable is actually named
+        files: dist/ChamundiAccounting.exe 
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
