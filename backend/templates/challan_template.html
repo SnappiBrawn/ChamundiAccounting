@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Delivery Challan</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 10mm;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 11px;
+            color: #000;
+            margin: 0;
+            padding: 0;
+            background-color: #fff;
+        }
+        .invoice-container {
+            border: 1px solid #000;
+            width: 100%;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-left { text-align: left; }
+        .font-bold { font-weight: bold; }
+        .border-bottom { border-bottom: 1px solid #000; }
+        .border-right { border-right: 1px solid #000; }
+        .border-top { border-top: 1px solid #000; }
+        .border-left { border-left: 1px solid #000; }
+        
+        .header-title {
+            font-size: 14px;
+            padding: 4px;
+            text-align: center;
+            border-bottom: 1px solid #000;
+            letter-spacing: 1px;
+        }
+        
+        .section-top {
+            display: flex;
+            border-bottom: 1px solid #000;
+        }
+        .company-details {
+            width: 50%;
+            padding: 6px;
+            box-sizing: border-box;
+        }
+        .invoice-meta {
+            width: 50%;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            box-sizing: border-box;
+        }
+        .meta-box {
+            padding: 6px;
+            border-bottom: 1px solid #000;
+            border-left: 1px solid #000;
+            min-height: 35px;
+        }
+        .meta-box:nth-child(odd) {
+            border-left: 1px solid #000;
+        }
+        .meta-box.full-width {
+            grid-column: span 2;
+        }
+        
+        .section-buyer {
+            display: flex;
+            border-bottom: 1px solid #000;
+        }
+        .buyer-details {
+            width: 100%;
+            padding: 6px;
+            box-sizing: border-box;
+        }
+        .buyer-meta {
+            margin-top: 5px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            flex-grow: 1;
+        }
+        .items-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+            padding: 5px;
+            border-bottom: 1px solid #000;
+            border-right: 1px solid #000;
+            font-size: 10px;
+        }
+        .items-table th:last-child {
+            border-right: none;
+        }
+        .items-table td {
+            padding: 4px 6px;
+            border-right: 1px solid #000;
+            vertical-align: top;
+            font-size: 10px;
+        }
+        .items-table td:last-child {
+            border-right: none;
+        }
+        .items-table tr.item-row {
+            height: 20px;
+        }
+        .items-table tr.spacer-row {
+            height: auto; /* fills space */
+        }
+        
+        .totals-section {
+            border-top: 1px solid #000;
+            border-bottom: 1px solid #000;
+        }
+        .totals-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .totals-table td {
+            padding: 4px 6px;
+            font-size: 10px;
+        }
+        
+        .bottom-section {
+            display: flex;
+            min-height: 120px;
+        }
+        .receiver-sig-box {
+            width: 50%;
+            padding: 6px;
+            box-sizing: border-box;
+            border-right: 1px solid #000;
+            font-size: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: center;
+            padding-bottom: 15px;
+        }
+        .declaration-box {
+            width: 50%;
+            padding: 6px;
+            box-sizing: border-box;
+            font-size: 9px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        
+        /* Width column classes */
+        .col-sr { width: 10%; text-align: center; }
+        .col-desc { width: 60%; }
+        .col-hsn { width: 15%; text-align: center; }
+        .col-qty { width: 15%; text-align: right; }
+        
+        @media print {
+            body {
+                margin: 0;
+                padding: 0;
+            }
+            .invoice-container {
+                border: 1px solid #000;
+                height: 275mm; /* Max height to fit A4 */
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="invoice-container">
+        <div class="header-title font-bold">DELIVERY CHALLAN</div>
+        
+        <div class="section-top">
+            <div class="company-details border-right">
+                <div style="margin-bottom: 6px;">
+                    <img src="/logo.png" alt="Company Logo" style="height: 36px; width: auto;" />
+                </div>
+                <div class="font-bold" style="font-size: 12px; margin-bottom: 4px;">{{company_name}}</div>
+                <div>{{address_line1}}</div>
+                <div>{{address_line2}}</div>
+                <div>{{address_line3}}</div>
+                <div>{{address_line4}}</div>
+                <div>Phone: {{company_phone}}</div>
+                <div style="margin-top: 6px;">
+                    <span class="font-bold">GSTIN/UIN:</span> {{company_gstin}}<br>
+                    <span class="font-bold">State Name:</span> {{company_state_name}}, <span class="font-bold">Code:</span> {{company_state_code}}
+                </div>
+            </div>
+            
+            <div class="invoice-meta">
+                <div class="meta-box border-right">
+                    <div class="font-bold">Challan No.</div>
+                    <div style="margin-top: 4px;">{{challan_no}}</div>
+                </div>
+                <div class="meta-box">
+                    <div class="font-bold">Dated</div>
+                    <div style="margin-top: 4px;">{{date}}</div>
+                </div>
+                <div class="meta-box border-right">
+                    <div class="font-bold">Ref. No.</div>
+                    <div style="margin-top: 4px;">{{ref_no}}</div>
+                </div>
+                <div class="meta-box">
+                    <div class="font-bold">Ref. Date</div>
+                    <div style="margin-top: 4px;">{{ref_date}}</div>
+                </div>
+                <div class="meta-box border-right">
+                    <div class="font-bold">Vehicle No.</div>
+                    <div style="margin-top: 4px;">{{vehicle_no}}</div>
+                </div>
+                <div class="meta-box">
+                    <div class="font-bold"></div>
+                    <div style="margin-top: 4px;"></div>
+                </div>
+                <div class="meta-box full-width">
+                    <div class="font-bold">Terms of Delivery</div>
+                    <div style="margin-top: 4px;">{{terms_delivery}}</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section-buyer">
+            <div class="buyer-details">
+                <div class="font-bold">To</div>
+                <div class="font-bold" style="margin-top: 2px;">{{customer_name}}</div>
+                <div>{{customer_address}}</div>
+                <div class="buyer-meta">
+                    <div><span class="font-bold">GSTIN/UIN:</span> {{customer_gstin}}</div>
+                    <div><span class="font-bold">State Name:</span> {{customer_state_name}}, <span class="font-bold">Code:</span> {{customer_state_code}}</div>
+                </div>
+            </div>
+        </div>
+        
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th class="col-sr">Sr. No.</th>
+                    <th class="col-desc">Description of Goods /Service</th>
+                    <th class="col-hsn">HSN/SAC</th>
+                    <th class="col-qty">Quantity</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Items injected here -->
+                {{items_rows}}
+                <!-- Spacer rows to push table footer down -->
+                {{spacer_rows}}
+            </tbody>
+        </table>
+        
+        <div class="totals-section">
+            <table class="totals-table">
+                <tr>
+                    <td class="col-sr border-right"></td>
+                    <td class="col-desc border-right font-bold text-right" style="text-align: right;">Total Quantity</td>
+                    <td class="col-hsn border-right"></td>
+                    <td class="col-qty font-bold text-right" style="text-align: right;">{{total_quantity}}</td>
+                </tr>
+            </table>
+        </div>
+        
+        <div class="bottom-section">
+            <div class="receiver-sig-box">
+                <div style="margin-bottom: 25px; border-bottom: 1px dotted #ccc; width: 80%;"></div>
+                <div class="font-bold">Receiver's Signature</div>
+            </div>
+            
+            <div class="declaration-box">
+                <div>
+                    <span class="font-bold border-bottom" style="padding-bottom: 2px; display: block; margin-bottom: 4px;">Declaration</span>
+                    We declare that this challan shows the actual particulars of the Goods described and that all details are true and correct.
+                </div>
+                <div style="text-align: right; margin-top: 15px;">
+                    <div>for <span class="font-bold">{{company_name}}</span></div>
+                    <div style="margin-top: 40px;" class="font-bold">Authorised Signatory</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
