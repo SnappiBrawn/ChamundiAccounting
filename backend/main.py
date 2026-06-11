@@ -16,7 +16,7 @@ from email.mime.base import MIMEBase
 from email import encoders
 from database import get_db_connection, init_db
 
-CURRENT_VERSION = "v1.0.4"
+CURRENT_VERSION = "v1.0.5"
 GITHUB_REPO_API = "https://api.github.com/repos/snappibrawn/chamundiaccounting/releases/latest"
 
 
@@ -808,7 +808,7 @@ async def download_update(payload: UpdateDownloadSchema):
             async with client.stream("GET", download_url, headers=headers, follow_redirects=True) as response:
                 response.raise_for_status()
                 with open(new_exe_path, "wb") as f:
-                    async for chunk in response.iter_bytes(chunk_size=8192):
+                    async for chunk in response.aiter_bytes(chunk_size=8192):
                         f.write(chunk)
                         
         bat_path = os.path.join(app_dir, "update_swap.bat")
