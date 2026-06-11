@@ -3,7 +3,7 @@ name: Build and Release Windows Executable
 on:
   push:
     tags:
-      - 'v*' # This triggers the action ONLY when you push a tag like v1.0.0
+      - 'v*'
 
 jobs:
   build:
@@ -17,6 +17,16 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22.12.0'
+
+    - name: Build Frontend
+      run: |
+        npm install
+        npm run build
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -34,7 +44,6 @@ jobs:
     - name: Publish GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        # Change 'main.exe' to whatever your executable is actually named
         files: dist/ChamundiAccounting.exe 
         generate_release_notes: true
       env:
