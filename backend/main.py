@@ -6,7 +6,13 @@ from typing import List, Optional
 import os
 import sys
 import sqlite3
+import httpx
+import subprocess
 from database import get_db_connection, init_db
+
+CURRENT_VERSION = "v1.0.3"
+GITHUB_REPO_API = "https://api.github.com/repos/snappibrawn/chamundiaccounting/releases/latest"
+
 
 # Initialize database
 init_db()
@@ -23,6 +29,9 @@ app.add_middleware(
 )
 
 # Pydantic Schemas
+class UpdateDownloadSchema(BaseModel):
+    download_url: str
+
 class CompanyConfigSchema(BaseModel):
     company_name: str
     address_line1: str
@@ -716,6 +725,107 @@ def get_invoice_template():
     with open(template_path, "r", encoding="utf-8") as f:
         html_content = f.read()
     return {"html": html_content}
+
+# System & Auto-Updater API
+@app.get("/api/system/check-update")
+async def check_for_updates():
+    """Checks GitHub for a newer release tag."""
+    headers = {"User-Agent": "ChamundiAccounting-AutoUpdater"}
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(GITHUB_REPO_API, headers=headers)
+            if response.status_code == 404:
+                return {"update_available": False, "latest_version": CURRENT_VERSION, "message": "No releases published yet"}
+            response.raise_for_status()
+            release_data = response.json()
+            
+            latest_version = release_data.get("tag_name")
+            
+            if latest_version and latest_version != CURRENT_VERSION:
+                download_url = None
+                for asset in release_data.get("assets", []):
+                    if asset["name"].endswith(".exe"):
+                        download_url = asset["browser_download_url"]
+                        break
+                        
+                return {
+                    "update_available": True,
+                    "latest_version": latest_version,
+                    "download_url": download_url,
+                    "release_notes": release_data.get("body", ""),
+                    "current_version": CURRENT_VERSION
+                }
+                
+            return {"update_available": False, "latest_version": CURRENT_VERSION, "current_version": CURRENT_VERSION}
+            
+        except Exception as e:
+            return {"update_available": False, "error": str(e), "current_version": CURRENT_VERSION}
+
+@app.post("/api/system/download-update")
+async def download_update(payload: UpdateDownloadSchema):
+    """Downloads the new .exe, writes a batch swap script, and restarts the app."""
+    download_url = payload.download_url
+    if not download_url:
+        raise HTTPException(status_code=400, detail="Missing download_url")
+        
+    try:
+        if getattr(sys, 'frozen', False):
+            app_dir = os.path.dirname(sys.executable)
+            exe_name = os.path.basename(sys.executable)
+            exe_path = sys.executable
+        else:
+            app_dir = os.path.dirname(os.path.dirname(__file__))
+            exe_name = "ChamundiAccounting.exe"
+            exe_path = os.path.join(app_dir, exe_name)
+            
+        new_exe_path = os.path.join(app_dir, "ChamundiAccounting_new.exe")
+        
+        if not getattr(sys, 'frozen', False):
+            print(f"[Simulated Update] Would download from: {download_url}")
+            print(f"[Simulated Update] Target app directory: {app_dir}")
+            print(f"[Simulated Update] Executable path to replace: {exe_path}")
+            return {"status": "success", "message": "Simulation: downloaded new version in dev mode"}
+            
+        headers = {"User-Agent": "ChamundiAccounting-AutoUpdater"}
+        async with httpx.AsyncClient() as client:
+            async with client.stream("GET", download_url, headers=headers, follow_redirects=True) as response:
+                response.raise_for_status()
+                with open(new_exe_path, "wb") as f:
+                    async for chunk in response.iter_bytes(chunk_size=8192):
+                        f.write(chunk)
+                        
+        bat_path = os.path.join(app_dir, "update_swap.bat")
+        
+        bat_content = f"""@echo off
+echo Waiting for {exe_name} to close...
+timeout /t 2 /nobreak > nul
+:loop
+tasklist /fi "imagename eq {exe_name}" | findstr /i "{exe_name}" > nul
+if %errorlevel% equ 0 (
+    taskkill /f /im "{exe_name}" > nul 2>&1
+    timeout /t 1 /nobreak > nul
+    goto loop
+)
+echo Replacing old executable with new version...
+if exist "{exe_path}" del /f /q "{exe_path}"
+move /y "{new_exe_path}" "{exe_path}"
+echo Restarting {exe_name}...
+start "" "{exe_path}"
+del "%~f0"
+"""
+        
+        with open(bat_path, "w", encoding="utf-8") as f:
+            f.write(bat_content)
+            
+        try:
+            subprocess.Popen([bat_path], creationflags=0x00000008, close_fds=True)
+        except Exception as e:
+            subprocess.Popen(["cmd.exe", "/c", bat_path], shell=True)
+            
+        os._exit(0)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
 
 # Serve Frontend SPA Static Files (production build mount)
 if getattr(sys, 'frozen', False):

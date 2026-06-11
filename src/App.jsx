@@ -5,6 +5,7 @@ import ChallanForm from './components/ChallanForm';
 import CustomerPanel from './components/CustomerPanel';
 import GoodsPanel from './components/GoodsPanel';
 import ConfigPage from './components/ConfigPage';
+import UpdateNotifier from './components/UpdateNotifier';
 import { ToastProvider } from './context/ToastContext';
 
 function App() {
@@ -34,6 +35,7 @@ function App() {
                 <main className="main-content">
                     {renderContent()}
                 </main>
+                <UpdateNotifier />
             </div>
         </ToastProvider>
     );
