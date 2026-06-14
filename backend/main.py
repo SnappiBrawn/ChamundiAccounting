@@ -16,7 +16,7 @@ from email.mime.base import MIMEBase
 from email import encoders
 from database import get_db_connection, init_db
 
-CURRENT_VERSION = "v1.0.6"
+CURRENT_VERSION = "v1.0.7"
 GITHUB_REPO_API = "https://api.github.com/repos/snappibrawn/chamundiaccounting/releases/latest"
 
 
@@ -52,6 +52,7 @@ class CompanyConfigSchema(BaseModel):
     bank_acc_no: str
     bank_branch: str
     bank_ifsc: str
+    bank_acc_holder: Optional[str] = ""
     cgst_rate: float
     sgst_rate: float
     igst_rate: float
@@ -226,7 +227,7 @@ def update_config(config: CompanyConfigSchema):
     UPDATE company_config SET
         company_name = ?, address_line1 = ?, address_line2 = ?, address_line3 = ?, address_line4 = ?,
         gstin = ?, pan = ?, state_name = ?, state_code = ?,
-        bank_name = ?, bank_acc_no = ?, bank_branch = ?, bank_ifsc = ?,
+        bank_name = ?, bank_acc_no = ?, bank_branch = ?, bank_ifsc = ?, bank_acc_holder = ?,
         cgst_rate = ?, sgst_rate = ?, igst_rate = ?,
         invoice_prefix = ?, invoice_suffix = ?, invoice_padding = ?, next_sequence = ?,
         date_format = ?, phone = ?,
@@ -236,7 +237,7 @@ def update_config(config: CompanyConfigSchema):
     """, (
         config.company_name, config.address_line1, config.address_line2, config.address_line3, config.address_line4,
         config.gstin, config.pan, config.state_name, config.state_code,
-        config.bank_name, config.bank_acc_no, config.bank_branch, config.bank_ifsc,
+        config.bank_name, config.bank_acc_no, config.bank_branch, config.bank_ifsc, config.bank_acc_holder,
         config.cgst_rate, config.sgst_rate, config.igst_rate,
         config.invoice_prefix, config.invoice_suffix, config.invoice_padding, config.next_sequence,
         config.date_format, config.phone,
@@ -1029,7 +1030,8 @@ def export_and_email_data():
                 .replace("{{bank_name}}", config["bank_name"] or "") \
                 .replace("{{bank_acc_no}}", config["bank_acc_no"] or "") \
                 .replace("{{bank_branch}}", config["bank_branch"] or "") \
-                .replace("{{bank_ifsc}}", config["bank_ifsc"] or "")
+                .replace("{{bank_ifsc}}", config["bank_ifsc"] or "") \
+                .replace("{{bank_acc_holder}}", config["bank_acc_holder"] or "")
             
             safe_invoice_no = inv["invoice_no"].replace("/", "_").replace("\\", "_")
             pdf_path = os.path.join(temp_dir, f"Invoice_{safe_invoice_no}.pdf")

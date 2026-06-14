@@ -142,7 +142,8 @@ export default function InvoicePreview({ invoice, companyConfig, onBack }) {
             .replace(/{{bank_name}}/g, companyConfig.bank_name)
             .replace(/{{bank_acc_no}}/g, companyConfig.bank_acc_no)
             .replace(/{{bank_branch}}/g, companyConfig.bank_branch)
-            .replace(/{{bank_ifsc}}/g, companyConfig.bank_ifsc);
+            .replace(/{{bank_ifsc}}/g, companyConfig.bank_ifsc)
+            .replace(/{{bank_acc_holder}}/g, companyConfig.bank_acc_holder || '');
 
         // Inject into iframe
         const doc = iframeRef.current.contentDocument || iframeRef.current.contentWindow.document;

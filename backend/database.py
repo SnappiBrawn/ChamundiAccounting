@@ -36,6 +36,7 @@ def init_db():
         bank_acc_no TEXT,
         bank_branch TEXT,
         bank_ifsc TEXT,
+        bank_acc_holder TEXT DEFAULT '',
         cgst_rate REAL,
         sgst_rate REAL,
         igst_rate REAL,
@@ -106,6 +107,12 @@ def init_db():
         pass
     try:
         cursor.execute("ALTER TABLE company_config ADD COLUMN email_to TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
+    
+    # Run migration to add bank_acc_holder column to existing company_config table if it doesn't exist
+    try:
+        cursor.execute("ALTER TABLE company_config ADD COLUMN bank_acc_holder TEXT DEFAULT ''")
     except sqlite3.OperationalError:
         pass
     
@@ -231,7 +238,7 @@ def init_db():
         INSERT INTO company_config (
             id, company_name, address_line1, address_line2, address_line3, address_line4,
             gstin, pan, state_name, state_code,
-            bank_name, bank_acc_no, bank_branch, bank_ifsc,
+            bank_name, bank_acc_no, bank_branch, bank_ifsc, bank_acc_holder,
             cgst_rate, sgst_rate, igst_rate,
             invoice_prefix, invoice_suffix, invoice_padding, next_sequence, date_format, phone,
             challan_prefix, challan_suffix, challan_padding, next_challan_sequence
@@ -250,6 +257,7 @@ def init_db():
             '12345678901', 
             'Peenya Branch', 
             'SBIN0001234',
+            'CHAMUNDI FASTENERS',
             9.0, 9.0, 18.0,
             'CF/', 
             '', 

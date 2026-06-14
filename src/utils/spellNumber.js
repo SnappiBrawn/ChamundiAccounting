@@ -24,11 +24,11 @@ function convertThreeDigits(num) {
 }
 
 export function spellNumber(amount) {
-    if (amount === undefined || amount === null || isNaN(amount)) return "Zero Rupees Only";
+    if (amount === undefined || amount === null || isNaN(amount)) return "Zero INR Only";
     
     // Round to two decimal places
     const roundedAmt = Math.round(amount * 100) / 100;
-    if (roundedAmt === 0) return "Rupees Zero Only";
+    if (roundedAmt === 0) return "INR Zero Only";
     
     const isNegative = roundedAmt < 0;
     const absAmt = Math.abs(roundedAmt);
@@ -68,7 +68,7 @@ export function spellNumber(amount) {
         }
     }
     
-    let result = (isNegative ? "Minus " : "") + "Rupees " + (words || "Zero");
+    let result = (isNegative ? "Minus " : "") + "INR " + (words || "Zero");
     
     if (paisePart > 0) {
         result += " and " + convertTwoDigits(paisePart) + " Paise";

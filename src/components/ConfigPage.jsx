@@ -19,6 +19,7 @@ export default function ConfigPage() {
         bank_acc_no: '',
         bank_branch: '',
         bank_ifsc: '',
+        bank_acc_holder: '',
         cgst_rate: 9.0,
         sgst_rate: 9.0,
         igst_rate: 18.0,
@@ -259,6 +260,14 @@ export default function ConfigPage() {
                         Company Bank Details
                     </h3>
                     <div className="form-grid">
+                        <div className="form-group">
+                            <label>Account Holder Name</label>
+                            <input
+                                type="text"
+                                value={config.bank_acc_holder || ''}
+                                onChange={(e) => handleChange('bank_acc_holder', e.target.value)}
+                            />
+                        </div>
                         <div className="form-group">
                             <label>Bank Name</label>
                             <input
