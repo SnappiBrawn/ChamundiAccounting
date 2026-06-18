@@ -16,7 +16,7 @@ from email.mime.base import MIMEBase
 from email import encoders
 from database import get_db_connection, init_db
 
-CURRENT_VERSION = "v1.0.8"
+CURRENT_VERSION = "v1.0.9"
 GITHUB_REPO_API = "https://api.github.com/repos/snappibrawn/chamundiaccounting/releases/latest"
 
 
@@ -71,6 +71,8 @@ class CompanyConfigSchema(BaseModel):
     smtp_user: Optional[str] = ""
     smtp_password: Optional[str] = ""
     email_to: Optional[str] = ""
+    duplicate_invoice: Optional[int] = 0
+    triplicate_invoice: Optional[int] = 0
 
 class CustomerSchema(BaseModel):
     name: str
@@ -232,7 +234,8 @@ def update_config(config: CompanyConfigSchema):
         invoice_prefix = ?, invoice_suffix = ?, invoice_padding = ?, next_sequence = ?,
         date_format = ?, phone = ?,
         challan_prefix = ?, challan_suffix = ?, challan_padding = ?, next_challan_sequence = ?,
-        smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_password = ?, email_to = ?
+        smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_password = ?, email_to = ?,
+        duplicate_invoice = ?, triplicate_invoice = ?
     WHERE id = 1
     """, (
         config.company_name, config.address_line1, config.address_line2, config.address_line3, config.address_line4,
@@ -242,7 +245,8 @@ def update_config(config: CompanyConfigSchema):
         config.invoice_prefix, config.invoice_suffix, config.invoice_padding, config.next_sequence,
         config.date_format, config.phone,
         config.challan_prefix, config.challan_suffix, config.challan_padding, config.next_challan_sequence,
-        config.smtp_host, config.smtp_port, config.smtp_user, config.smtp_password, config.email_to
+        config.smtp_host, config.smtp_port, config.smtp_user, config.smtp_password, config.email_to,
+        config.duplicate_invoice, config.triplicate_invoice
     ))
     conn.commit()
     conn.close()
@@ -999,42 +1003,73 @@ def export_and_email_data():
                 </tr>
                 """
                 
-            html_content = invoice_template \
-                .replace("{{logo_path}}", logo_path) \
-                .replace("{{company_name}}", config["company_name"] or "") \
-                .replace("{{address_line1}}", config["address_line1"] or "") \
-                .replace("{{address_line2}}", config["address_line2"] or "") \
-                .replace("{{address_line3}}", config["address_line3"] or "") \
-                .replace("{{address_line4}}", config["address_line4"] or "") \
-                .replace("{{company_gstin}}", config["gstin"] or "") \
-                .replace("{{company_state_name}}", config["state_name"] or "") \
-                .replace("{{company_state_code}}", config["state_code"] or "") \
-                .replace("{{company_pan}}", config["pan"] or "") \
-                .replace("{{company_phone}}", config["phone"] or "") \
-                .replace("{{invoice_no}}", inv["invoice_no"]) \
-                .replace("{{date}}", format_date_py(inv["date"], config["date_format"])) \
-                .replace("{{ref_no}}", inv["ref_no"] or "") \
-                .replace("{{ref_date}}", format_date_py(inv["ref_date"], config["date_format"])) \
-                .replace("{{vehicle_no}}", inv["vehicle_no"] or "") \
-                .replace("{{other_ref}}", inv["other_ref"] or "") \
-                .replace("{{terms_delivery}}", inv["terms_delivery"] or "") \
-                .replace("{{customer_name}}", inv["customer_name"] or "") \
-                .replace("{{customer_address}}", inv["customer_address"] or "") \
-                .replace("{{customer_gstin}}", inv["customer_gstin"] or "") \
-                .replace("{{customer_state_name}}", inv["customer_state"] or "") \
-                .replace("{{customer_state_code}}", inv["customer_state_code"] or "") \
-                .replace("{{items_rows}}", items_rows) \
-                .replace("{{spacer_rows}}", spacer_rows) \
-                .replace("{{total_quantity}}", str(total_qty)) \
-                .replace("{{taxable_value}}", f"{inv['taxable_value']:.2f}") \
-                .replace("{{tax_rows}}", tax_rows) \
-                .replace("{{total_value}}", f"{inv['total_value']:.2f}") \
-                .replace("{{total_words}}", inv["total_words"] or "") \
-                .replace("{{bank_name}}", config["bank_name"] or "") \
-                .replace("{{bank_acc_no}}", config["bank_acc_no"] or "") \
-                .replace("{{bank_branch}}", config["bank_branch"] or "") \
-                .replace("{{bank_ifsc}}", config["bank_ifsc"] or "") \
-                .replace("{{bank_acc_holder}}", config["bank_acc_holder"] or "")
+            # Determine copies
+            copies = ['Original']
+            if config.get("duplicate_invoice") == 1:
+                copies.append('Duplicate')
+            if config.get("triplicate_invoice") == 1:
+                copies.append('Triplicate')
+
+            # Extract body content from template
+            body_idx_start = invoice_template.find("<body>")
+            body_idx_end = invoice_template.find("</body>")
+            if body_idx_start != -1 and body_idx_end != -1:
+                html_start = invoice_template[:body_idx_start + 6]
+                body_template = invoice_template[body_idx_start + 6:body_idx_end]
+                html_end = invoice_template[body_idx_end:]
+            else:
+                html_start = ""
+                body_template = invoice_template
+                html_end = ""
+
+            bodies = []
+            for i, copy in enumerate(copies):
+                copy_label = f" - {copy}" if len(copies) > 1 else ""
+                copy_body = body_template \
+                    .replace("{{copy_label}}", copy_label) \
+                    .replace("{{logo_path}}", logo_path) \
+                    .replace("{{company_name}}", config["company_name"] or "") \
+                    .replace("{{address_line1}}", config["address_line1"] or "") \
+                    .replace("{{address_line2}}", config["address_line2"] or "") \
+                    .replace("{{address_line3}}", config["address_line3"] or "") \
+                    .replace("{{address_line4}}", config["address_line4"] or "") \
+                    .replace("{{company_gstin}}", config["gstin"] or "") \
+                    .replace("{{company_state_name}}", config["state_name"] or "") \
+                    .replace("{{company_state_code}}", config["state_code"] or "") \
+                    .replace("{{company_pan}}", config["pan"] or "") \
+                    .replace("{{company_phone}}", config["phone"] or "") \
+                    .replace("{{invoice_no}}", inv["invoice_no"]) \
+                    .replace("{{date}}", format_date_py(inv["date"], config["date_format"])) \
+                    .replace("{{ref_no}}", inv["ref_no"] or "") \
+                    .replace("{{ref_date}}", format_date_py(inv["ref_date"], config["date_format"])) \
+                    .replace("{{vehicle_no}}", inv["vehicle_no"] or "") \
+                    .replace("{{other_ref}}", inv["other_ref"] or "") \
+                    .replace("{{terms_delivery}}", inv["terms_delivery"] or "") \
+                    .replace("{{customer_name}}", inv["customer_name"] or "") \
+                    .replace("{{customer_address}}", inv["customer_address"] or "") \
+                    .replace("{{customer_gstin}}", inv["customer_gstin"] or "") \
+                    .replace("{{customer_state_name}}", inv["customer_state"] or "") \
+                    .replace("{{customer_state_code}}", inv["customer_state_code"] or "") \
+                    .replace("{{items_rows}}", items_rows) \
+                    .replace("{{spacer_rows}}", spacer_rows) \
+                    .replace("{{total_quantity}}", str(total_qty)) \
+                    .replace("{{taxable_value}}", f"{inv['taxable_value']:.2f}") \
+                    .replace("{{tax_rows}}", tax_rows) \
+                    .replace("{{total_value}}", f"{inv['total_value']:.2f}") \
+                    .replace("{{total_words}}", inv["total_words"] or "") \
+                    .replace("{{bank_name}}", config["bank_name"] or "") \
+                    .replace("{{bank_acc_no}}", config["bank_acc_no"] or "") \
+                    .replace("{{bank_branch}}", config["bank_branch"] or "") \
+                    .replace("{{bank_ifsc}}", config["bank_ifsc"] or "") \
+                    .replace("{{bank_acc_holder}}", config["bank_acc_holder"] or "")
+
+                if i < len(copies) - 1:
+                    # Inject page-break-after: always to separate pages in single PDF
+                    copy_body = copy_body.replace('<div class="invoice-container">', '<div class="invoice-container" style="page-break-after: always;">')
+
+                bodies.append(copy_body)
+
+            html_content = html_start + "\n".join(bodies) + html_end
             
             safe_invoice_no = inv["invoice_no"].replace("/", "_").replace("\\", "_")
             pdf_path = os.path.join(temp_dir, f"Invoice_{safe_invoice_no}.pdf")

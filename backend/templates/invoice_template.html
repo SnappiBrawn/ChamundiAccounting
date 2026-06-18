@@ -187,13 +187,18 @@
             .invoice-container {
                 border: 1px solid #000;
                 height: 275mm; /* Max height to fit A4 */
+                page-break-after: always;
+                box-sizing: border-box;
+            }
+            .invoice-container:last-child {
+                page-break-after: avoid;
             }
         }
     </style>
 </head>
 <body>
     <div class="invoice-container">
-        <div class="header-title font-bold">TAX INVOICE</div>
+        <div class="header-title font-bold">TAX INVOICE - {{copy_label}}</div>
         
         <div class="section-top">
             <div class="company-details border-right">

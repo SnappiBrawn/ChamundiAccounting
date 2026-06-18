@@ -54,10 +54,22 @@ def init_db():
         smtp_port INTEGER DEFAULT 587,
         smtp_user TEXT DEFAULT '',
         smtp_password TEXT DEFAULT '',
-        email_to TEXT DEFAULT ''
+        email_to TEXT DEFAULT '',
+        duplicate_invoice INTEGER DEFAULT 0,
+        triplicate_invoice INTEGER DEFAULT 0
     )
     """)
     
+    # Run migration to add duplicate_invoice and triplicate_invoice columns to existing company_config table if they don't exist
+    try:
+        cursor.execute("ALTER TABLE company_config ADD COLUMN duplicate_invoice INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute("ALTER TABLE company_config ADD COLUMN triplicate_invoice INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
     # Run migration to add date_format column to existing company_config table if it doesn't exist
     try:
         cursor.execute("ALTER TABLE company_config ADD COLUMN date_format TEXT DEFAULT 'YYYY-MM-DD'")
@@ -241,7 +253,8 @@ def init_db():
             bank_name, bank_acc_no, bank_branch, bank_ifsc, bank_acc_holder,
             cgst_rate, sgst_rate, igst_rate,
             invoice_prefix, invoice_suffix, invoice_padding, next_sequence, date_format, phone,
-            challan_prefix, challan_suffix, challan_padding, next_challan_sequence
+            challan_prefix, challan_suffix, challan_padding, next_challan_sequence,
+            duplicate_invoice, triplicate_invoice
         ) VALUES (
             1, 
             'CHAMUNDI FASTENERS', 
@@ -268,7 +281,9 @@ def init_db():
             'DC/',
             '',
             4,
-            1
+            1,
+            0,
+            0
         )
         """)
         

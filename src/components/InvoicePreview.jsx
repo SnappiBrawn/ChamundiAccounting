@@ -108,42 +108,81 @@ export default function InvoicePreview({ invoice, companyConfig, onBack }) {
             `;
         }
 
-        // Interpolate variables
-        let htmlContent = rawTemplate
-            .replace(/{{company_name}}/g, companyConfig.company_name)
-            .replace(/{{address_line1}}/g, companyConfig.address_line1)
-            .replace(/{{address_line2}}/g, companyConfig.address_line2)
-            .replace(/{{address_line3}}/g, companyConfig.address_line3)
-            .replace(/{{address_line4}}/g, companyConfig.address_line4)
-            .replace(/{{company_gstin}}/g, companyConfig.gstin)
-            .replace(/{{company_state_name}}/g, companyConfig.state_name)
-            .replace(/{{company_state_code}}/g, companyConfig.state_code)
-            .replace(/{{company_pan}}/g, companyConfig.pan)
-            .replace(/{{company_phone}}/g, companyConfig.phone || '')
-            .replace(/{{invoice_no}}/g, invoice.invoice_no)
-            .replace(/{{date}}/g, formatDate(invoice.date, companyConfig.date_format))
-            .replace(/{{ref_no}}/g, invoice.ref_no || '')
-            .replace(/{{ref_date}}/g, formatDate(invoice.ref_date, companyConfig.date_format))
-            .replace(/{{vehicle_no}}/g, invoice.vehicle_no || '')
-            .replace(/{{other_ref}}/g, invoice.other_ref || '')
-            .replace(/{{terms_delivery}}/g, invoice.terms_delivery || '')
-            .replace(/{{customer_name}}/g, invoice.customer_name)
-            .replace(/{{customer_address}}/g, invoice.customer_address)
-            .replace(/{{customer_gstin}}/g, invoice.customer_gstin || '')
-            .replace(/{{customer_state_name}}/g, invoice.customer_state)
-            .replace(/{{customer_state_code}}/g, invoice.customer_state_code)
-            .replace(/{{items_rows}}/g, itemsRows)
-            .replace(/{{spacer_rows}}/g, spacerRows)
-            .replace(/{{total_quantity}}/g, totalQty)
-            .replace(/{{taxable_value}}/g, invoice.taxable_value.toFixed(2))
-            .replace(/{{tax_rows}}/g, taxRows)
-            .replace(/{{total_value}}/g, invoice.total_value.toFixed(2))
-            .replace(/{{total_words}}/g, invoice.total_words)
-            .replace(/{{bank_name}}/g, companyConfig.bank_name)
-            .replace(/{{bank_acc_no}}/g, companyConfig.bank_acc_no)
-            .replace(/{{bank_branch}}/g, companyConfig.bank_branch)
-            .replace(/{{bank_ifsc}}/g, companyConfig.bank_ifsc)
-            .replace(/{{bank_acc_holder}}/g, companyConfig.bank_acc_holder || '');
+        // Determine copies
+        const copies = ['Original'];
+        if (companyConfig.duplicate_invoice === 1) {
+            copies.push('Duplicate');
+        }
+        if (companyConfig.triplicate_invoice === 1) {
+            copies.push('Triplicate');
+        }
+
+        // Extract body section from rawTemplate
+        let htmlStart = '';
+        let bodyTemplate = rawTemplate;
+        let htmlEnd = '';
+
+        const bodyStartIdx = rawTemplate.indexOf('<body>');
+        const bodyEndIdx = rawTemplate.indexOf('</body>');
+
+        if (bodyStartIdx !== -1 && bodyEndIdx !== -1) {
+            htmlStart = rawTemplate.substring(0, bodyStartIdx + 6);
+            bodyTemplate = rawTemplate.substring(bodyStartIdx + 6, bodyEndIdx);
+            htmlEnd = rawTemplate.substring(bodyEndIdx);
+        }
+
+        const bodies = copies.map((copy, idx) => {
+            let copyBody = bodyTemplate;
+            if (copies.length > 1) {
+                copyBody = copyBody.replace(/{{copy_label}}/g, copy);
+            } else {
+                copyBody = copyBody.replace(/ - {{copy_label}}/g, '');
+            }
+
+            copyBody = copyBody
+                .replace(/{{company_name}}/g, companyConfig.company_name)
+                .replace(/{{address_line1}}/g, companyConfig.address_line1)
+                .replace(/{{address_line2}}/g, companyConfig.address_line2)
+                .replace(/{{address_line3}}/g, companyConfig.address_line3)
+                .replace(/{{address_line4}}/g, companyConfig.address_line4)
+                .replace(/{{company_gstin}}/g, companyConfig.gstin)
+                .replace(/{{company_state_name}}/g, companyConfig.state_name)
+                .replace(/{{company_state_code}}/g, companyConfig.state_code)
+                .replace(/{{company_pan}}/g, companyConfig.pan)
+                .replace(/{{company_phone}}/g, companyConfig.phone || '')
+                .replace(/{{invoice_no}}/g, invoice.invoice_no)
+                .replace(/{{date}}/g, formatDate(invoice.date, companyConfig.date_format))
+                .replace(/{{ref_no}}/g, invoice.ref_no || '')
+                .replace(/{{ref_date}}/g, formatDate(invoice.ref_date, companyConfig.date_format))
+                .replace(/{{vehicle_no}}/g, invoice.vehicle_no || '')
+                .replace(/{{other_ref}}/g, invoice.other_ref || '')
+                .replace(/{{terms_delivery}}/g, invoice.terms_delivery || '')
+                .replace(/{{customer_name}}/g, invoice.customer_name)
+                .replace(/{{customer_address}}/g, invoice.customer_address)
+                .replace(/{{customer_gstin}}/g, invoice.customer_gstin || '')
+                .replace(/{{customer_state_name}}/g, invoice.customer_state)
+                .replace(/{{customer_state_code}}/g, invoice.customer_state_code)
+                .replace(/{{items_rows}}/g, itemsRows)
+                .replace(/{{spacer_rows}}/g, spacerRows)
+                .replace(/{{total_quantity}}/g, totalQty)
+                .replace(/{{taxable_value}}/g, invoice.taxable_value.toFixed(2))
+                .replace(/{{tax_rows}}/g, taxRows)
+                .replace(/{{total_value}}/g, invoice.total_value.toFixed(2))
+                .replace(/{{total_words}}/g, invoice.total_words)
+                .replace(/{{bank_name}}/g, companyConfig.bank_name)
+                .replace(/{{bank_acc_no}}/g, companyConfig.bank_acc_no)
+                .replace(/{{bank_branch}}/g, companyConfig.bank_branch)
+                .replace(/{{bank_ifsc}}/g, companyConfig.bank_ifsc)
+                .replace(/{{bank_acc_holder}}/g, companyConfig.bank_acc_holder || '');
+
+            if (idx < copies.length - 1) {
+                copyBody = copyBody.replace('<div class="invoice-container">', '<div class="invoice-container" style="page-break-after: always;">');
+            }
+
+            return copyBody;
+        });
+
+        const htmlContent = htmlStart + bodies.join('\n') + htmlEnd;
 
         // Inject into iframe
         const doc = iframeRef.current.contentDocument || iframeRef.current.contentWindow.document;

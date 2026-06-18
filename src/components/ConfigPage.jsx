@@ -37,7 +37,9 @@ export default function ConfigPage() {
         smtp_port: 587,
         smtp_user: '',
         smtp_password: '',
-        email_to: ''
+        email_to: '',
+        duplicate_invoice: 0,
+        triplicate_invoice: 0
     });
 
     const [loading, setLoading] = useState(true);
@@ -491,6 +493,39 @@ export default function ConfigPage() {
                             }}>
                                 {formatDate(new Date().toISOString().split('T')[0], config.date_format || 'YYYY-MM-DD')}
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Invoice Printing Copies */}
+                <div>
+                    <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
+                        Invoice Copies (Printing)
+                    </h3>
+                    <div style={{ display: 'flex', gap: '2rem', marginTop: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <input
+                                type="checkbox"
+                                id="duplicate_invoice"
+                                checked={config.duplicate_invoice === 1}
+                                onChange={(e) => handleChange('duplicate_invoice', e.target.checked ? 1 : 0)}
+                                style={{ width: 'auto', cursor: 'pointer' }}
+                            />
+                            <label htmlFor="duplicate_invoice" style={{ cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500, userSelect: 'none' }}>
+                                Enable Duplicate Copy
+                            </label>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <input
+                                type="checkbox"
+                                id="triplicate_invoice"
+                                checked={config.triplicate_invoice === 1}
+                                onChange={(e) => handleChange('triplicate_invoice', e.target.checked ? 1 : 0)}
+                                style={{ width: 'auto', cursor: 'pointer' }}
+                            />
+                            <label htmlFor="triplicate_invoice" style={{ cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500, userSelect: 'none' }}>
+                                Enable Triplicate Copy
+                            </label>
                         </div>
                     </div>
                 </div>
