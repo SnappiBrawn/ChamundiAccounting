@@ -16,7 +16,7 @@ from email.mime.base import MIMEBase
 from email import encoders
 from database import get_db_connection, init_db
 
-CURRENT_VERSION = "v1.0.7"
+CURRENT_VERSION = "v1.0.8"
 GITHUB_REPO_API = "https://api.github.com/repos/snappibrawn/chamundiaccounting/releases/latest"
 
 
@@ -836,9 +836,12 @@ del "%~f0"
             f.write(bat_content)
             
         try:
-            subprocess.Popen([bat_path], creationflags=0x00000008, close_fds=True)
+            os.startfile(bat_path)
+        except AttributeError:
+            # Fallback for non-Windows (os.startfile only exists on Windows)
+            subprocess.Popen(["cmd.exe", "/c", bat_path], creationflags=0x00000010, close_fds=True)
         except Exception as e:
-            subprocess.Popen(["cmd.exe", "/c", bat_path], shell=True)
+            subprocess.Popen(["cmd.exe", "/c", bat_path], creationflags=0x00000010, close_fds=True)
             
         os._exit(0)
         
