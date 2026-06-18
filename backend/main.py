@@ -16,7 +16,7 @@ from email.mime.base import MIMEBase
 from email import encoders
 from database import get_db_connection, init_db
 
-CURRENT_VERSION = "v1.0.9"
+CURRENT_VERSION = "v1.0.10"
 GITHUB_REPO_API = "https://api.github.com/repos/snappibrawn/chamundiaccounting/releases/latest"
 
 
@@ -832,6 +832,8 @@ echo Replacing old executable with new version...
 if exist "{exe_path}" del /f /q "{exe_path}"
 move /y "{new_exe_path}" "{exe_path}"
 echo Restarting {exe_name}...
+set _MEIPASS2=
+set _MEIPASS=
 start "" "{exe_path}"
 del "%~f0"
 """
