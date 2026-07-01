@@ -16,7 +16,7 @@ from email.mime.base import MIMEBase
 from email import encoders
 from database import get_db_connection, init_db
 
-CURRENT_VERSION = "v1.0.10"
+CURRENT_VERSION = "v1.0.11"
 GITHUB_REPO_API = "https://api.github.com/repos/snappibrawn/chamundiaccounting/releases/latest"
 
 
